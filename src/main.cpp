@@ -43,7 +43,7 @@ const int countdownDurationSeconds = 10;
 int countdownElapsedSeconds;
 int startTimeMs, endTimeMs, deltaTimeMs;
 int potentiometerAngle;
-int userButtonSequence[TESTING_LENGTH], masterButtonSequence[TESTING_LENGTH] {BUTTON_RED, BUTTON_RED, BUTTON_RED}; // TODO: abstract array length; figure out way to do this not stupidly 
+int userButtonSequence[TESTING_LENGTH], masterButtonSequence[TESTING_LENGTH] = {BUTTON_RED, BUTTON_RED, BUTTON_RED}; // TODO: abstract array length; figure out way to do this not stupidly 
 int userButtonSequenceIndex;
 bool potentiometerSolved, buttonSolved, bombDefused;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
@@ -199,12 +199,3 @@ void setLEDColor(int redValue, int greenValue, int blueValue) {
     analogWrite(DYNAMIC_LED_GREEN, greenValue);
     analogWrite(DYNAMIC_LED_BLUE, blueValue);
 }
-
-/* <----------------------------| CODE GRAVEYARD |----------------------------> */
-
-// // TODO: for debugging
-// for (int i = 0; i < TESTING_LENGTH; i++) {
-//     Serial.print(userButtonSequence[i]);
-//     Serial.print(", ");
-// }
-// Serial.print("END");
