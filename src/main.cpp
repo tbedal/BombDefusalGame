@@ -1,42 +1,70 @@
-/* <----------------------------| DECLARATIONS  |----------------------------> */
+/* <----------------------------| INCLUDES  |----------------------------> */
 
 #include <Arduino.h>
 #include <LiquidCrystal.h>
 
-#define BUZZER 12
+/* <----------------------------| DEFINES  |----------------------------> */
+
+#define SPEAKER 12
 #define LCD_CONTRAST 13
+
+#define STATIC_LED_GREEN 2
+#define DYNAMIC_LED_RED 8
+#define DYNAMIC_LED_GREEN 9
+#define DYNAMIC_LED_BLUE 10
+
 #define POTENTIOMETER 54
-#define DYNAMIC_LED_RED 2
-#define DYNAMIC_LED_GREEN 3
-#define DYNAMIC_LED_BLUE 4
+
+// TODO: numbers are temporary until wiring is finalized
+#define BUTTON_RED 53
+#define BUTTON_YELLOW 52
+#define BUTTON_GREEN 51
+#define BUTTON_BLUE 50
+
+#define TESTING_LENGTH 3
+
+/* <----------------------------| FUNCTIONS  |----------------------------> */
 
 int countDigits(int num);
+int length(int array[]);
+bool arraysAreEquivalent(int array1[], int array2[]);
 void printNumberWithLeadingZeros(int num, int width);
+void setLEDColor(int redValue, int greenValue, int blueValue);
 
 /* <----------------------------| CONSTANTS |----------------------------> */
 
 const int rs = 27, en = 26, d4 = 25, d5 = 24, d6 = 23, d7 = 22;
-const int LCD_COLUMNS = 16;
-const int LCD_ROWS = 2;
+const int LCD_COLUMNS = 16, LCD_ROWS = 2;
+const int MIN_DIAL_ANGLE = 150, MAX_DIAL_ANGLE = 170;
+const int countdownDurationSeconds = 10;
 
 /* <----------------------------| VARIABLES |----------------------------> */
 
-int countdownDurationSeconds, countdownElapsedSeconds;
-int startTimeMs, endTimeMs;
+int countdownElapsedSeconds;
+int startTimeMs, endTimeMs, deltaTimeMs;
 int potentiometerAngle;
-bool bombDefused;
+int userButtonSequence[TESTING_LENGTH], masterButtonSequence[TESTING_LENGTH] {BUTTON_RED, BUTTON_RED, BUTTON_RED}; // TODO: abstract array length; figure out way to do this not stupidly 
+int userButtonSequenceIndex;
+bool potentiometerSolved, buttonSolved, bombDefused;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 
 /* <----------------------------| MAIN FUNCTIONS |----------------------------> */
 
 void setup() {
-    // Initialize pins
-    pinMode(BUZZER, OUTPUT);
+    Serial.begin(9600);
+    
+    // Initialize input pins
+    pinMode(SPEAKER, OUTPUT);
     pinMode(LCD_CONTRAST, OUTPUT);
-    pinMode(POTENTIOMETER, INPUT);
+    pinMode(STATIC_LED_GREEN, OUTPUT);
     pinMode(DYNAMIC_LED_RED, OUTPUT);
     pinMode(DYNAMIC_LED_GREEN, OUTPUT);
     pinMode(DYNAMIC_LED_BLUE, OUTPUT);
+    pinMode(POTENTIOMETER, INPUT);
+    pinMode(BUTTON_RED, INPUT);
+    pinMode(BUTTON_YELLOW, INPUT);
+    pinMode(BUTTON_GREEN, INPUT);
+    pinMode(BUTTON_BLUE, INPUT);
 
     // Initialize LCD screen
     lcd.begin(LCD_COLUMNS, LCD_ROWS);
@@ -44,62 +72,92 @@ void setup() {
     analogWrite(LCD_CONTRAST, 100);
 
     // Initialize LEDs
+    digitalWrite(STATIC_LED_GREEN, LOW);
     analogWrite(DYNAMIC_LED_RED, 255);
     analogWrite(DYNAMIC_LED_GREEN, 0);
     analogWrite(DYNAMIC_LED_BLUE, 0);
 
     // Initialize variables
-    bombDefused = false;
-    countdownDurationSeconds = 10;
+    potentiometerSolved = false, buttonSolved = false, bombDefused = false;
+    userButtonSequenceIndex = 0;
     countdownElapsedSeconds = 0;
-    startTimeMs = millis();
-    endTimeMs = millis();
+    startTimeMs = millis(), endTimeMs = millis();
 
     // Display countdown using millis() method
     while (countdownElapsedSeconds < countdownDurationSeconds && !bombDefused) {
-        // Update LCD screen and timekeeping after one second has passed, fire speaker
-        if (endTimeMs - startTimeMs >= 1000) {
+        // Countdown update
+        deltaTimeMs = endTimeMs - startTimeMs;
+        if (deltaTimeMs >= 1000) {
+            // Update LCD Screen
             countdownElapsedSeconds++;
             lcd.home();
             printNumberWithLeadingZeros((countdownElapsedSeconds - countdownDurationSeconds) * -1, 2);
 
-            analogWrite(BUZZER, 1);
+            // Buzz speaker
+            analogWrite(SPEAKER, 1);
             delay(100);
-            analogWrite(BUZZER, 0);
+            analogWrite(SPEAKER, 0);
 
+            // Restart seconds counter
             startTimeMs = millis();
         }
 
         // Turn LED to green if potentiometer within defusal range, otherwise keep red
         potentiometerAngle = analogRead(POTENTIOMETER);
-        if (potentiometerAngle >= 150 && potentiometerAngle <= 160) {
-            analogWrite(DYNAMIC_LED_RED, 0);
-            analogWrite(DYNAMIC_LED_GREEN, 255);
-            analogWrite(DYNAMIC_LED_BLUE, 0);
-            bombDefused = true;
-            continue;
+        if (potentiometerAngle >= MIN_DIAL_ANGLE && potentiometerAngle <= MAX_DIAL_ANGLE) {
+            setLEDColor(0, 255, 0);
+            potentiometerSolved = true;
         }
         else {
-            analogWrite(DYNAMIC_LED_RED, 255);
-            analogWrite(DYNAMIC_LED_GREEN, 0);
-            analogWrite(DYNAMIC_LED_BLUE, 0);
+            int redVal = deltaTimeMs % (MAX_DIAL_ANGLE - potentiometerAngle) >= 60 ? 255 : 0;
+            setLEDColor(redVal, 0, 0);
+            potentiometerSolved = false;
         }
+
+        // TODO: this shit doesnt work. probably an issue with button debouncing
+        // Keep track of user button presses
+        userButtonSequenceIndex = userButtonSequenceIndex < TESTING_LENGTH ? userButtonSequenceIndex : 0;
+        if (digitalRead(BUTTON_RED)    == 1) { userButtonSequence[userButtonSequenceIndex++] = BUTTON_RED;    }
+        if (digitalRead(BUTTON_YELLOW) == 1) { userButtonSequence[userButtonSequenceIndex++] = BUTTON_GREEN;  }
+        if (digitalRead(BUTTON_BLUE)   == 1) { userButtonSequence[userButtonSequenceIndex++] = BUTTON_YELLOW; }
+        if (digitalRead(BUTTON_GREEN)  == 1) { userButtonSequence[userButtonSequenceIndex++] = BUTTON_BLUE;   }
+
+        // Turn Green LED on if red button pressed four times in a row
+        if (arraysAreEquivalent(userButtonSequence, masterButtonSequence)) {
+            digitalWrite(STATIC_LED_GREEN, HIGH);
+            buttonSolved = true;
+        }
+        else {
+            digitalWrite(STATIC_LED_GREEN, LOW);
+            buttonSolved = false;
+        }
+
+        // Check if all puzzles have been solved
+        bombDefused = potentiometerSolved && buttonSolved;
 
         // Keep track of how much time has passed since last second
         endTimeMs = millis();
     }
 
-    // Long speaker firing to indicate bomb detonation
-    analogWrite(BUZZER, 1);
-    delay(3000);
-    analogWrite(BUZZER, 0);
-}
+    // Terminate countdown via defusal or detonation
+    if (bombDefused) {
+        lcd.setCursor(0, 1);
+        lcd.print("BOMB DEFUSED");
+    }
+    else {
+        lcd.setCursor(0, 1);
+        lcd.print("BOOM!");
 
-void loop() {
-    // End of program -> display BOOM! text
-    lcd.setCursor(0, 1);
-    analogWrite(BUZZER, 0);
-    lcd.print("BOOM!");
+        // Long speaker firing to indicate bomb detonation
+        analogWrite(SPEAKER, 1);
+        delay(3000);
+    }
+
+    // Silence buzzer
+    analogWrite(SPEAKER, 0);
+
+    // Terminate program
+    exit(0);
 }
 
 /* <----------------------------| HELPER METHODS |----------------------------> */
@@ -114,6 +172,18 @@ int countDigits(int num) {
     return digits;
 }
 
+int length(int array[]) {
+    return (int) (sizeof(array) / sizeof(array[0])); // TODO why is this a warning?
+}
+
+// Determine if two arrays contain the same elements
+bool arraysAreEquivalent(int array1[], int array2[]) {
+    for (int i = 0; i < length(array1); i++) {
+        if (array1[i] != array2[i]) { return false; }
+    }
+    return true;
+}
+
 // Helper function to print numbers to an LCD screen as a formatted string with leading zeros 
 void printNumberWithLeadingZeros(int num, int width) {
     int currentDigits = countDigits(num);
@@ -122,3 +192,19 @@ void printNumberWithLeadingZeros(int num, int width) {
     }
     lcd.print(num);
 }
+
+// Sets color of common cathod RGB LED on breadboard
+void setLEDColor(int redValue, int greenValue, int blueValue) {
+    analogWrite(DYNAMIC_LED_RED, redValue);
+    analogWrite(DYNAMIC_LED_GREEN, greenValue);
+    analogWrite(DYNAMIC_LED_BLUE, blueValue);
+}
+
+/* <----------------------------| CODE GRAVEYARD |----------------------------> */
+
+// // TODO: for debugging
+// for (int i = 0; i < TESTING_LENGTH; i++) {
+//     Serial.print(userButtonSequence[i]);
+//     Serial.print(", ");
+// }
+// Serial.print("END");
