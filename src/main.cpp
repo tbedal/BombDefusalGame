@@ -41,7 +41,7 @@ const int countdownDurationSeconds = 10;
 /* <----------------------------| VARIABLES |----------------------------> */
 
 int countdownElapsedSeconds;
-int startTimeMs, endTimeMs, deltaTimeMs;
+unsigned long startTimeMs, endTimeMs, deltaTimeMs;
 int potentiometerAngle;
 int userButtonSequence[TESTING_LENGTH], masterButtonSequence[TESTING_LENGTH] = {BUTTON_RED, BUTTON_RED, BUTTON_RED}; // TODO: abstract array length; figure out way to do this not stupidly 
 int userButtonSequenceIndex;
