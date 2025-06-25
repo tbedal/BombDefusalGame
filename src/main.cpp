@@ -5,17 +5,18 @@
 
 /* <----------------------------| DEFINES  |----------------------------> */
 
-#define SPEAKER 0
+// Graphical/audio pins
 #define LCD_CONTRAST 13
+#define SPEAKER 0
 
+// LED pins
 #define STATIC_LED_GREEN 2
 #define DYNAMIC_LED_RED 8
 #define DYNAMIC_LED_GREEN 9
 #define DYNAMIC_LED_BLUE 10
 
+// Puzzle pins
 #define POTENTIOMETER 54
-
-// TODO: numbers are temporary until wiring is finalized
 #define BUTTON_RED 53
 #define BUTTON_YELLOW 52
 #define BUTTON_GREEN 51
@@ -30,10 +31,17 @@ void setLEDColor(int redValue, int greenValue, int blueValue);
 
 /* <----------------------------| CONSTANTS |----------------------------> */
 
+// LCD constants
 const int rs = 27, en = 26, d4 = 25, d5 = 24, d6 = 23, d7 = 22;
 const int LCD_COLUMNS = 16, LCD_ROWS = 2;
+
+// Countdown constants
+const int COUNTDOWN_DURATION = 10;
+
+// Potentiometer constants
 const int MIN_DIAL_ANGLE = 150, MAX_DIAL_ANGLE = 170;
-const int countdownDurationSeconds = 10;
+
+// Button constants
 const int NUM_BUTTONS = 4;
 const int BUTTON_PINS[NUM_BUTTONS] = {BUTTON_RED, BUTTON_YELLOW, BUTTON_GREEN, BUTTON_BLUE};
 const int MASTER_SEQUENCE[] = {BUTTON_RED, BUTTON_RED, BUTTON_RED};
@@ -41,16 +49,23 @@ const int SEQUENCE_LENGTH = (int) (sizeof(MASTER_SEQUENCE) / sizeof(*MASTER_SEQU
 
 /* <----------------------------| VARIABLES |----------------------------> */
 
+// LCD variables
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+
+// Countdown variables
 int countdownElapsedSeconds;
 unsigned long startTimeMs, endTimeMs, deltaTimeMs;
+bool potentiometerSolved, buttonSolved, bombDefused;
+
+// Potentiometer variables
 int potentiometerAngle;
+
+// Button variables
 int userSequence[SEQUENCE_LENGTH];
 int userSequenceIndex;
 int buttonState[NUM_BUTTONS];
 int lastButtonState[NUM_BUTTONS];
 
-bool potentiometerSolved, buttonSolved, bombDefused;
-LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 
 /* <----------------------------| MAIN FUNCTIONS |----------------------------> */
 
@@ -93,7 +108,7 @@ void loop() {
 
     // Check if all puzzles have been solved
     bombDefused = potentiometerSolved && buttonSolved;
-    bool countdownComplete = countdownElapsedSeconds >= countdownDurationSeconds;
+    bool countdownComplete = countdownElapsedSeconds >= COUNTDOWN_DURATION;
 
     // Terminate countdown via defusal or detonation
     if (countdownComplete) {
@@ -122,7 +137,7 @@ void loop() {
         // Update LCD Screen
         countdownElapsedSeconds++;
         lcd.home();
-        printNumberWithLeadingZeros((countdownElapsedSeconds - countdownDurationSeconds) * -1, 2);
+        printNumberWithLeadingZeros((countdownElapsedSeconds - COUNTDOWN_DURATION) * -1, 2);
 
         // Buzz speaker
         analogWrite(SPEAKER, 1);
@@ -173,7 +188,7 @@ void loop() {
 
 /* <----------------------------| HELPER METHODS |----------------------------> */
 
-// Helper function to count the number of digits in a given number for formatting
+// Count the number of digits in a given number for formatting
 int countDigits(int num) {
     int digits = 0;
     do {
@@ -191,7 +206,7 @@ bool arraysAreEquivalent(int array1[], int array2[], int arrayLength) {
     return true;
 }
 
-// Helper function to print numbers to an LCD screen as a formatted string with leading zeros 
+// Print numbers to an LCD screen as a formatted string with leading zeros 
 void printNumberWithLeadingZeros(int num, int width) {
     int currentDigits = countDigits(num);
     for (int i = 0; i < width - currentDigits; i++) {
@@ -200,7 +215,7 @@ void printNumberWithLeadingZeros(int num, int width) {
     lcd.print(num);
 }
 
-// Sets color of common cathod RGB LED on breadboard
+// Set color of common cathode RGB LED on breadboard
 void setLEDColor(int redValue, int greenValue, int blueValue) {
     analogWrite(DYNAMIC_LED_RED, redValue);
     analogWrite(DYNAMIC_LED_GREEN, greenValue);
