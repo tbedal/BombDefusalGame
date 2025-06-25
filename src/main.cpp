@@ -5,7 +5,7 @@
 
 /* <----------------------------| DEFINES  |----------------------------> */
 
-#define SPEAKER 12
+#define SPEAKER 0
 #define LCD_CONTRAST 13
 
 #define STATIC_LED_GREEN 2
@@ -21,13 +21,10 @@
 #define BUTTON_GREEN 51
 #define BUTTON_BLUE 50
 
-#define TESTING_LENGTH 3
-
 /* <----------------------------| FUNCTIONS  |----------------------------> */
 
 int countDigits(int num);
-int length(int array[]);
-bool arraysAreEquivalent(int array1[], int array2[]);
+bool arraysAreEquivalent(int array1[], int array2[], int arrayLength);
 void printNumberWithLeadingZeros(int num, int width);
 void setLEDColor(int redValue, int greenValue, int blueValue);
 
@@ -37,14 +34,21 @@ const int rs = 27, en = 26, d4 = 25, d5 = 24, d6 = 23, d7 = 22;
 const int LCD_COLUMNS = 16, LCD_ROWS = 2;
 const int MIN_DIAL_ANGLE = 150, MAX_DIAL_ANGLE = 170;
 const int countdownDurationSeconds = 10;
+const int NUM_BUTTONS = 4;
+const int BUTTON_PINS[NUM_BUTTONS] = {BUTTON_RED, BUTTON_YELLOW, BUTTON_GREEN, BUTTON_BLUE};
+const int MASTER_SEQUENCE[] = {BUTTON_RED, BUTTON_RED, BUTTON_RED};
+const int SEQUENCE_LENGTH = (int) (sizeof(MASTER_SEQUENCE) / sizeof(*MASTER_SEQUENCE));
 
 /* <----------------------------| VARIABLES |----------------------------> */
 
 int countdownElapsedSeconds;
-int startTimeMs, endTimeMs, deltaTimeMs;
+unsigned long startTimeMs, endTimeMs, deltaTimeMs;
 int potentiometerAngle;
-int userButtonSequence[TESTING_LENGTH], masterButtonSequence[TESTING_LENGTH] = {BUTTON_RED, BUTTON_RED, BUTTON_RED}; // TODO: abstract array length; figure out way to do this not stupidly 
-int userButtonSequenceIndex;
+int userSequence[SEQUENCE_LENGTH];
+int userSequenceIndex;
+int buttonState[NUM_BUTTONS];
+int lastButtonState[NUM_BUTTONS];
+
 bool potentiometerSolved, buttonSolved, bombDefused;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 
@@ -79,7 +83,7 @@ void setup() {
 
     // Initialize variables
     potentiometerSolved = false, buttonSolved = false, bombDefused = false;
-    userButtonSequenceIndex = 0;
+    userSequenceIndex = 0;
     countdownElapsedSeconds = 0;
     startTimeMs = millis(), endTimeMs = millis();
 }
@@ -145,22 +149,20 @@ void loop() {
 
     /* ---------- BUTTON PUZZLE ---------- */
 
-    // TODO: this shit doesnt work. probably an issue with button debouncing
-    // Keep track of user button presses
-    userButtonSequenceIndex = userButtonSequenceIndex < TESTING_LENGTH ? userButtonSequenceIndex : 0;
-    if (digitalRead(BUTTON_RED)    == 1) { userButtonSequence[userButtonSequenceIndex++] = BUTTON_RED;    }
-    if (digitalRead(BUTTON_YELLOW) == 1) { userButtonSequence[userButtonSequenceIndex++] = BUTTON_GREEN;  }
-    if (digitalRead(BUTTON_BLUE)   == 1) { userButtonSequence[userButtonSequenceIndex++] = BUTTON_YELLOW; }
-    if (digitalRead(BUTTON_GREEN)  == 1) { userButtonSequence[userButtonSequenceIndex++] = BUTTON_BLUE;   }
+    // Poll all buttons in RGYB order, with positive-edge-triggered updates to user's button sequence
+    for (int i = 0; i < NUM_BUTTONS; i++) {
+        int currentButton = BUTTON_PINS[i];
+        buttonState[i] = digitalRead(currentButton);
+        if (lastButtonState[i] == 1 && buttonState[i] == 0) {
+            userSequence[userSequenceIndex++] = currentButton;
+        }
+        lastButtonState[i] = buttonState[i];
+    }
 
     // Turn Green LED on if red button pressed four times in a row
-    if (arraysAreEquivalent(userButtonSequence, masterButtonSequence)) {
+    if (arraysAreEquivalent(userSequence, (int*) MASTER_SEQUENCE, SEQUENCE_LENGTH)) {
         digitalWrite(STATIC_LED_GREEN, HIGH);
         buttonSolved = true;
-    }
-    else {
-        digitalWrite(STATIC_LED_GREEN, LOW);
-        buttonSolved = false;
     }
 
     /* ---------- CLOCK ---------- */
@@ -181,13 +183,9 @@ int countDigits(int num) {
     return digits;
 }
 
-int length(int array[]) {
-    return (int) (sizeof(array) / sizeof(array[0])); // TODO why is this a warning?
-}
-
 // Determine if two arrays contain the same elements
-bool arraysAreEquivalent(int array1[], int array2[]) {
-    for (int i = 0; i < length(array1); i++) {
+bool arraysAreEquivalent(int array1[], int array2[], int arrayLength) {
+    for (int i = 0; i < arrayLength; i++) {
         if (array1[i] != array2[i]) { return false; }
     }
     return true;
