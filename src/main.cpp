@@ -82,82 +82,91 @@ void setup() {
     userButtonSequenceIndex = 0;
     countdownElapsedSeconds = 0;
     startTimeMs = millis(), endTimeMs = millis();
+}
 
-    // Display countdown using millis() method
-    while (countdownElapsedSeconds < countdownDurationSeconds && !bombDefused) {
-        // Countdown update
-        deltaTimeMs = endTimeMs - startTimeMs;
-        if (deltaTimeMs >= 1000) {
-            // Update LCD Screen
-            countdownElapsedSeconds++;
-            lcd.home();
-            printNumberWithLeadingZeros((countdownElapsedSeconds - countdownDurationSeconds) * -1, 2);
+void loop() {
+    /* ---------- BOMB DEFUSED/DETONATED ---------- */
 
-            // Buzz speaker
-            analogWrite(SPEAKER, 1);
-            delay(100);
-            analogWrite(SPEAKER, 0);
-
-            // Restart seconds counter
-            startTimeMs = millis();
-        }
-
-        // Turn LED to green if potentiometer within defusal range, otherwise keep red
-        potentiometerAngle = analogRead(POTENTIOMETER);
-        if (potentiometerAngle >= MIN_DIAL_ANGLE && potentiometerAngle <= MAX_DIAL_ANGLE) {
-            setLEDColor(0, 255, 0);
-            potentiometerSolved = true;
-        }
-        else {
-            int redVal = deltaTimeMs % (MAX_DIAL_ANGLE - potentiometerAngle) >= 60 ? 255 : 0;
-            setLEDColor(redVal, 0, 0);
-            potentiometerSolved = false;
-        }
-
-        // TODO: this shit doesnt work. probably an issue with button debouncing
-        // Keep track of user button presses
-        userButtonSequenceIndex = userButtonSequenceIndex < TESTING_LENGTH ? userButtonSequenceIndex : 0;
-        if (digitalRead(BUTTON_RED)    == 1) { userButtonSequence[userButtonSequenceIndex++] = BUTTON_RED;    }
-        if (digitalRead(BUTTON_YELLOW) == 1) { userButtonSequence[userButtonSequenceIndex++] = BUTTON_GREEN;  }
-        if (digitalRead(BUTTON_BLUE)   == 1) { userButtonSequence[userButtonSequenceIndex++] = BUTTON_YELLOW; }
-        if (digitalRead(BUTTON_GREEN)  == 1) { userButtonSequence[userButtonSequenceIndex++] = BUTTON_BLUE;   }
-
-        // Turn Green LED on if red button pressed four times in a row
-        if (arraysAreEquivalent(userButtonSequence, masterButtonSequence)) {
-            digitalWrite(STATIC_LED_GREEN, HIGH);
-            buttonSolved = true;
-        }
-        else {
-            digitalWrite(STATIC_LED_GREEN, LOW);
-            buttonSolved = false;
-        }
-
-        // Check if all puzzles have been solved
-        bombDefused = potentiometerSolved && buttonSolved;
-
-        // Keep track of how much time has passed since last second
-        endTimeMs = millis();
-    }
+    // Check if all puzzles have been solved
+    bombDefused = potentiometerSolved && buttonSolved;
+    bool countdownComplete = countdownElapsedSeconds >= countdownDurationSeconds;
 
     // Terminate countdown via defusal or detonation
-    if (bombDefused) {
-        lcd.setCursor(0, 1);
-        lcd.print("BOMB DEFUSED");
-    }
-    else {
+    if (countdownComplete) {
         lcd.setCursor(0, 1);
         lcd.print("BOOM!");
 
         // Long speaker firing to indicate bomb detonation
         analogWrite(SPEAKER, 1);
         delay(3000);
+        analogWrite(SPEAKER, 0);
+
+        exit(0);
+    }
+    else if (bombDefused) {
+        lcd.setCursor(0, 1);
+        lcd.print("BOMB DEFUSED");
+
+        exit(0);
     }
 
-    // Silence buzzer
-    analogWrite(SPEAKER, 0);
+    /* ---------- COUNTDOWN SEQUENCE ---------- */
 
-    // Terminate program
-    exit(0);
+    // Countdown update
+    deltaTimeMs = endTimeMs - startTimeMs;
+    if (deltaTimeMs >= 1000) {
+        // Update LCD Screen
+        countdownElapsedSeconds++;
+        lcd.home();
+        printNumberWithLeadingZeros((countdownElapsedSeconds - countdownDurationSeconds) * -1, 2);
+
+        // Buzz speaker
+        analogWrite(SPEAKER, 1);
+        delay(100);
+        analogWrite(SPEAKER, 0);
+
+        // Restart seconds counter
+        startTimeMs = millis();
+    }
+
+    /* ---------- POTENTIOMETER PUZZLE ---------- */
+
+    // Turn LED to green if potentiometer within defusal range, otherwise keep red
+    potentiometerAngle = analogRead(POTENTIOMETER);
+    if (potentiometerAngle >= MIN_DIAL_ANGLE && potentiometerAngle <= MAX_DIAL_ANGLE) {
+        setLEDColor(0, 255, 0);
+        potentiometerSolved = true;
+    }
+    else {
+        int redVal = deltaTimeMs % (MAX_DIAL_ANGLE - potentiometerAngle) >= 60 ? 255 : 0;
+        setLEDColor(redVal, 0, 0);
+        potentiometerSolved = false;
+    }
+
+    /* ---------- BUTTON PUZZLE ---------- */
+
+    // TODO: this shit doesnt work. probably an issue with button debouncing
+    // Keep track of user button presses
+    userButtonSequenceIndex = userButtonSequenceIndex < TESTING_LENGTH ? userButtonSequenceIndex : 0;
+    if (digitalRead(BUTTON_RED)    == 1) { userButtonSequence[userButtonSequenceIndex++] = BUTTON_RED;    }
+    if (digitalRead(BUTTON_YELLOW) == 1) { userButtonSequence[userButtonSequenceIndex++] = BUTTON_GREEN;  }
+    if (digitalRead(BUTTON_BLUE)   == 1) { userButtonSequence[userButtonSequenceIndex++] = BUTTON_YELLOW; }
+    if (digitalRead(BUTTON_GREEN)  == 1) { userButtonSequence[userButtonSequenceIndex++] = BUTTON_BLUE;   }
+
+    // Turn Green LED on if red button pressed four times in a row
+    if (arraysAreEquivalent(userButtonSequence, masterButtonSequence)) {
+        digitalWrite(STATIC_LED_GREEN, HIGH);
+        buttonSolved = true;
+    }
+    else {
+        digitalWrite(STATIC_LED_GREEN, LOW);
+        buttonSolved = false;
+    }
+
+    /* ---------- CLOCK ---------- */
+
+    // Keep track of how much time has passed since last second
+    endTimeMs = millis();
 }
 
 /* <----------------------------| HELPER METHODS |----------------------------> */
