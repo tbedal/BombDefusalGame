@@ -212,7 +212,7 @@ void loop() {
         lastButtonState[i] = buttonState[i];
     }
 
-    // Turn Green LED on if red button pressed four times in a row, otherwise, clear user sequence
+    // Turn Green LED on if button sequence is entered by user, otherwise, reset the sequence register
     if (userSequenceIndex != 0 && userSequence[userSequenceIndex - 1] != MASTER_SEQUENCE[userSequenceIndex - 1]) {
         resetUserSequence();
     }
@@ -224,6 +224,7 @@ void loop() {
 
     /* ---------- WIRE PUZZLE ---------- */
 
+    // Wait for pinout on indicated wire to read 20 zeros in a row to wire is cut, then defuse or detonate accordingly
     greenWireCutCount = digitalRead(PUZZLE_WIRE_GREEN) == 0 ? greenWireCutCount + 1 : 0;
     redWireCutCount = digitalRead(PUZZLE_WIRE_RED) == 0 ? redWireCutCount + 1 : 0;
     if (greenWireCutCount >= 20) {
