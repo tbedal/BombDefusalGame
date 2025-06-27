@@ -6,7 +6,7 @@
 
 /* <----------------------------| DEFINES  |----------------------------> */
 
-// Graphical/audio pins
+// Initalize UX pins
 #define LCD_CONTRAST 13
 #define SPEAKER 12
 #define SERVO 6
@@ -31,6 +31,7 @@ bool arraysAreEquivalent(int array1[], int array2[], int arrayLength);
 void printNumberWithLeadingZeros(int num, int width);
 void setLEDColor(int redValue, int greenValue, int blueValue);
 void setServo(Servo s, int angle, int speed);
+void resetUserSequence();
 
 /* <----------------------------| CONSTANTS |----------------------------> */
 
@@ -79,15 +80,17 @@ int lastButtonState[NUM_BUTTONS];
 void setup() {
     Serial.begin(9600);
     
-    // Initialize input pins
+    // Initialize UX pins
     pinMode(SPEAKER, OUTPUT);
     pinMode(LCD_CONTRAST, OUTPUT);
 
+    // Initialize LED pins
     pinMode(STATIC_LED_GREEN, OUTPUT);
     pinMode(DYNAMIC_LED_RED, OUTPUT);
     pinMode(DYNAMIC_LED_GREEN, OUTPUT);
     pinMode(DYNAMIC_LED_BLUE, OUTPUT);
 
+    // Initialize puzzle pins
     pinMode(POTENTIOMETER, INPUT);
     pinMode(BUTTON_RED, INPUT);
     pinMode(BUTTON_YELLOW, INPUT);
@@ -190,7 +193,6 @@ void loop() {
         buttonState[i] = digitalRead(currentButton);
         if (lastButtonState[i] == 1 && buttonState[i] == 0) {
             userSequence[userSequenceIndex++] = currentButton;
-            Serial.print(currentButton);
         }
         lastButtonState[i] = buttonState[i];
     }
@@ -200,10 +202,8 @@ void loop() {
         digitalWrite(STATIC_LED_GREEN, HIGH);
         buttonSolved = true;
     }
-    else {
-        for (int i = 0; i < SEQUENCE_LENGTH; i++) {
-            userSequence[i] = NULL;
-        }
+    else if (userSequenceIndex == SEQUENCE_LENGTH) {
+        resetUserSequence();
     }
 
     /* ---------- CLOCK ---------- */
@@ -253,5 +253,13 @@ void setServo(Servo s, int angle, int speed) {
     while (s.read() < angle) {
         s.write(s.read() + 1);
         delay(speed);
+    }
+}
+
+// Clears the user sequence array with null pin
+void resetUserSequence() {
+    userSequenceIndex = 0;
+    for (int i = 0; i < SEQUENCE_LENGTH; i++) {
+        userSequence[i] = -1;
     }
 }
