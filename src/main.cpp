@@ -30,6 +30,7 @@ int countDigits(int num);
 bool arraysAreEquivalent(int array1[], int array2[], int arrayLength);
 void printNumberWithLeadingZeros(int num, int width);
 void setLEDColor(int redValue, int greenValue, int blueValue);
+void setServo(Servo s, int angle, int speed);
 
 /* <----------------------------| CONSTANTS |----------------------------> */
 
@@ -133,12 +134,8 @@ void loop() {
         delay(3000);
         analogWrite(SPEAKER, 0);
 
-        // Turn servo to let chemicals mix
-        // TODO: this is bad
-        while (servo.read() < 180) {
-            servo.write(servo.read() + 1);
-            delay(15);
-        }
+        // Move pin out of way to let chemicals mix
+        setServo(servo, 360, 15);
 
         // Terminate program
         exit(0);
@@ -249,4 +246,12 @@ void setLEDColor(int redValue, int greenValue, int blueValue) {
     analogWrite(DYNAMIC_LED_RED, redValue);
     analogWrite(DYNAMIC_LED_GREEN, greenValue);
     analogWrite(DYNAMIC_LED_BLUE, blueValue);
+}
+
+// Turn servo to specified angle, with a delay of speed between each degree turn
+void setServo(Servo s, int angle, int speed) {
+    while (s.read() < angle) {
+        s.write(s.read() + 1);
+        delay(speed);
+    }
 }
