@@ -17,12 +17,18 @@
 #define DYNAMIC_LED_GREEN 9
 #define DYNAMIC_LED_BLUE 10
 
-// Puzzle pins
+// Potentiometer pin
 #define POTENTIOMETER 54
+
+// Button pins
 #define BUTTON_RED 53
 #define BUTTON_YELLOW 52
 #define BUTTON_GREEN 51
 #define BUTTON_BLUE 50
+
+// Wire pins
+#define PUZZLE_WIRE_GREEN 40
+#define PUZZLE_WIRE_RED 41
 
 /* <----------------------------| FUNCTIONS  |----------------------------> */
 
@@ -40,7 +46,7 @@ const int rs = 27, en = 26, d4 = 25, d5 = 24, d6 = 23, d7 = 22;
 const int LCD_COLUMNS = 16, LCD_ROWS = 2;
 
 // Countdown constants
-const int COUNTDOWN_DURATION = 5;
+const int COUNTDOWN_DURATION = 500;
 
 // Potentiometer constants
 const int MIN_DIAL_ANGLE = 150, MAX_DIAL_ANGLE = 170;
@@ -48,8 +54,11 @@ const int MIN_DIAL_ANGLE = 150, MAX_DIAL_ANGLE = 170;
 // Button constants
 const int NUM_BUTTONS = 4;
 const int BUTTON_PINS[NUM_BUTTONS] = {BUTTON_RED, BUTTON_YELLOW, BUTTON_GREEN, BUTTON_BLUE};
-const int MASTER_SEQUENCE[] = {BUTTON_RED, BUTTON_RED, BUTTON_RED};
+const int MASTER_SEQUENCE[] = {BUTTON_RED, BUTTON_YELLOW, BUTTON_RED};
 const int SEQUENCE_LENGTH = (int) (sizeof(MASTER_SEQUENCE) / sizeof(*MASTER_SEQUENCE));
+
+// Wire constants
+const int CUT_COUNT_THRESHOLD = 20;
 
 /* <----------------------------| VARIABLES |----------------------------> */
 
@@ -63,7 +72,8 @@ int servoPosition;
 // Countdown variables
 int countdownElapsedSeconds;
 unsigned long startTimeMs, endTimeMs, deltaTimeMs;
-bool potentiometerSolved, buttonSolved, bombDefused;
+bool potentiometerIsSolved, buttonIsSolved, wireIsSolved;
+bool countdownIsComplete, bombIsDefused;
 
 // Potentiometer variables
 int potentiometerAngle;
@@ -73,6 +83,9 @@ int userSequence[SEQUENCE_LENGTH];
 int userSequenceIndex;
 int buttonState[NUM_BUTTONS];
 int lastButtonState[NUM_BUTTONS];
+
+// Wire variables
+int greenWireCutCount, redWireCutCount;
 
 
 /* <----------------------------| MAIN FUNCTIONS |----------------------------> */
@@ -113,9 +126,11 @@ void setup() {
     analogWrite(DYNAMIC_LED_BLUE, 0);
 
     // Initialize variables
-    potentiometerSolved = false, buttonSolved = false, bombDefused = false;
+    for (int i = 0; i < SEQUENCE_LENGTH; i++) { userSequence[i] = -1; }
+    potentiometerIsSolved = false, buttonIsSolved = false, wireIsSolved = false, bombIsDefused = false;
     userSequenceIndex = 0;
     countdownElapsedSeconds = 0;
+    greenWireCutCount = 0;
     startTimeMs = millis(), endTimeMs = millis();
 }
 
@@ -123,11 +138,11 @@ void loop() {
     /* ---------- BOMB DEFUSED/DETONATED ---------- */
 
     // Check if all puzzles have been solved
-    bombDefused = potentiometerSolved && buttonSolved;
-    bool countdownComplete = countdownElapsedSeconds >= COUNTDOWN_DURATION;
+    bombIsDefused = potentiometerIsSolved && buttonIsSolved && wireIsSolved;
+    countdownIsComplete = countdownElapsedSeconds >= COUNTDOWN_DURATION;
 
     // Terminate countdown via defusal or detonation
-    if (countdownComplete) {
+    if (countdownIsComplete) {
         // Announce bomb detonation 
         lcd.setCursor(0, 1);
         lcd.print("DETONATING...");
@@ -138,12 +153,12 @@ void loop() {
         analogWrite(SPEAKER, 0);
 
         // Move pin out of way to let chemicals mix
-        setServo(servo, 360, 15);
+        setServo(servo, 180, 15);
 
         // Terminate program
         exit(0);
     }
-    else if (bombDefused) {
+    else if (bombIsDefused) {
         // Announce successful bomb defusal
         lcd.setCursor(0, 1);
         lcd.print("BOMB DEFUSED");
@@ -177,12 +192,12 @@ void loop() {
     potentiometerAngle = analogRead(POTENTIOMETER);
     if (potentiometerAngle >= MIN_DIAL_ANGLE && potentiometerAngle <= MAX_DIAL_ANGLE) {
         setLEDColor(0, 255, 0);
-        potentiometerSolved = true;
+        potentiometerIsSolved = true;
     }
     else {
         int redVal = deltaTimeMs % (MAX_DIAL_ANGLE - potentiometerAngle) >= 60 ? 255 : 0;
         setLEDColor(redVal, 0, 0);
-        potentiometerSolved = false;
+        potentiometerIsSolved = false;
     }
 
     /* ---------- BUTTON PUZZLE ---------- */
@@ -198,12 +213,24 @@ void loop() {
     }
 
     // Turn Green LED on if red button pressed four times in a row, otherwise, clear user sequence
-    if (arraysAreEquivalent(userSequence, (int*) MASTER_SEQUENCE, SEQUENCE_LENGTH)) {
-        digitalWrite(STATIC_LED_GREEN, HIGH);
-        buttonSolved = true;
+    if (userSequenceIndex != 0 && userSequence[userSequenceIndex - 1] != MASTER_SEQUENCE[userSequenceIndex - 1]) {
+        resetUserSequence();
     }
     else if (userSequenceIndex == SEQUENCE_LENGTH) {
-        resetUserSequence();
+        digitalWrite(STATIC_LED_GREEN, HIGH);
+        buttonIsSolved = true;
+    }
+
+
+    /* ---------- WIRE PUZZLE ---------- */
+
+    greenWireCutCount = digitalRead(PUZZLE_WIRE_GREEN) == 0 ? greenWireCutCount + 1 : 0;
+    redWireCutCount = digitalRead(PUZZLE_WIRE_RED) == 0 ? redWireCutCount + 1 : 0;
+    if (greenWireCutCount >= 20) {
+        wireIsSolved = true;
+    }
+    else if (redWireCutCount >= 20) {
+        countdownElapsedSeconds = COUNTDOWN_DURATION;
     }
 
     /* ---------- CLOCK ---------- */
@@ -258,8 +285,10 @@ void setServo(Servo s, int angle, int speed) {
 
 // Clears the user sequence array with null pin
 void resetUserSequence() {
-    userSequenceIndex = 0;
+    int lastButtonPressed = userSequence[userSequenceIndex];
     for (int i = 0; i < SEQUENCE_LENGTH; i++) {
-        userSequence[i] = -1;
+        userSequence[i] = -1; 
     }
+    userSequenceIndex = 0;
+    userSequence[0] = lastButtonPressed;
 }
