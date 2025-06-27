@@ -2,12 +2,14 @@
 
 #include <Arduino.h>
 #include <LiquidCrystal.h>
+#include <Servo.h>
 
 /* <----------------------------| DEFINES  |----------------------------> */
 
 // Graphical/audio pins
 #define LCD_CONTRAST 13
-#define SPEAKER 0
+#define SPEAKER 12
+#define SERVO 6
 
 // LED pins
 #define STATIC_LED_GREEN 2
@@ -28,6 +30,7 @@ int countDigits(int num);
 bool arraysAreEquivalent(int array1[], int array2[], int arrayLength);
 void printNumberWithLeadingZeros(int num, int width);
 void setLEDColor(int redValue, int greenValue, int blueValue);
+void setServo(Servo s, int angle, int speed);
 
 /* <----------------------------| CONSTANTS |----------------------------> */
 
@@ -36,7 +39,7 @@ const int rs = 27, en = 26, d4 = 25, d5 = 24, d6 = 23, d7 = 22;
 const int LCD_COLUMNS = 16, LCD_ROWS = 2;
 
 // Countdown constants
-const int COUNTDOWN_DURATION = 10;
+const int COUNTDOWN_DURATION = 5;
 
 // Potentiometer constants
 const int MIN_DIAL_ANGLE = 150, MAX_DIAL_ANGLE = 170;
@@ -51,6 +54,10 @@ const int SEQUENCE_LENGTH = (int) (sizeof(MASTER_SEQUENCE) / sizeof(*MASTER_SEQU
 
 // LCD variables
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+
+// Servo variables
+Servo servo;
+int servoPosition;
 
 // Countdown variables
 int countdownElapsedSeconds;
@@ -75,10 +82,12 @@ void setup() {
     // Initialize input pins
     pinMode(SPEAKER, OUTPUT);
     pinMode(LCD_CONTRAST, OUTPUT);
+
     pinMode(STATIC_LED_GREEN, OUTPUT);
     pinMode(DYNAMIC_LED_RED, OUTPUT);
     pinMode(DYNAMIC_LED_GREEN, OUTPUT);
     pinMode(DYNAMIC_LED_BLUE, OUTPUT);
+
     pinMode(POTENTIOMETER, INPUT);
     pinMode(BUTTON_RED, INPUT);
     pinMode(BUTTON_YELLOW, INPUT);
@@ -89,6 +98,10 @@ void setup() {
     lcd.begin(LCD_COLUMNS, LCD_ROWS);
     lcd.setCursor(0, 0);
     analogWrite(LCD_CONTRAST, 100);
+    
+    // Initialize Servo
+    servo.attach(SERVO);
+    servoPosition = servo.read();
 
     // Initialize LEDs
     digitalWrite(STATIC_LED_GREEN, LOW);
@@ -112,20 +125,27 @@ void loop() {
 
     // Terminate countdown via defusal or detonation
     if (countdownComplete) {
+        // Announce bomb detonation 
         lcd.setCursor(0, 1);
-        lcd.print("BOOM!");
+        lcd.print("DETONATING...");
 
         // Long speaker firing to indicate bomb detonation
         analogWrite(SPEAKER, 1);
         delay(3000);
         analogWrite(SPEAKER, 0);
 
+        // Move pin out of way to let chemicals mix
+        setServo(servo, 360, 15);
+
+        // Terminate program
         exit(0);
     }
     else if (bombDefused) {
+        // Announce successful bomb defusal
         lcd.setCursor(0, 1);
         lcd.print("BOMB DEFUSED");
 
+        // Terminate program
         exit(0);
     }
 
@@ -170,14 +190,20 @@ void loop() {
         buttonState[i] = digitalRead(currentButton);
         if (lastButtonState[i] == 1 && buttonState[i] == 0) {
             userSequence[userSequenceIndex++] = currentButton;
+            Serial.print(currentButton);
         }
         lastButtonState[i] = buttonState[i];
     }
 
-    // Turn Green LED on if red button pressed four times in a row
+    // Turn Green LED on if red button pressed four times in a row, otherwise, clear user sequence
     if (arraysAreEquivalent(userSequence, (int*) MASTER_SEQUENCE, SEQUENCE_LENGTH)) {
         digitalWrite(STATIC_LED_GREEN, HIGH);
         buttonSolved = true;
+    }
+    else {
+        for (int i = 0; i < SEQUENCE_LENGTH; i++) {
+            userSequence[i] = NULL;
+        }
     }
 
     /* ---------- CLOCK ---------- */
@@ -220,4 +246,12 @@ void setLEDColor(int redValue, int greenValue, int blueValue) {
     analogWrite(DYNAMIC_LED_RED, redValue);
     analogWrite(DYNAMIC_LED_GREEN, greenValue);
     analogWrite(DYNAMIC_LED_BLUE, blueValue);
+}
+
+// Turn servo to specified angle, with a delay of speed between each degree turn
+void setServo(Servo s, int angle, int speed) {
+    while (s.read() < angle) {
+        s.write(s.read() + 1);
+        delay(speed);
+    }
 }
