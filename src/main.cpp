@@ -34,6 +34,7 @@
 
 int countDigits(int num);
 bool arraysAreEquivalent(int array1[], int array2[], int arrayLength);
+bool valueWithinTargetError(int value, int target, int error);
 void printNumberWithLeadingZeros(int num, int width);
 void setLEDColor(int redValue, int greenValue, int blueValue);
 void setServo(Servo s, int angle, int speed);
@@ -49,7 +50,8 @@ const int LCD_COLUMNS = 16, LCD_ROWS = 2;
 const int COUNTDOWN_DURATION = 500;
 
 // Potentiometer constants
-const int MIN_DIAL_ANGLE = 150, MAX_DIAL_ANGLE = 170;
+const int DIAL_SOLUTION_ANGLE = 433;
+const int DIAL_SOLUTION_ERROR = 2;
 
 // Button constants
 const int NUM_BUTTONS = 4;
@@ -189,14 +191,13 @@ void loop() {
     /* ---------- POTENTIOMETER PUZZLE ---------- */
 
     // Turn LED to green if potentiometer within defusal range, otherwise keep red
-    potentiometerAngle = analogRead(POTENTIOMETER);
-    if (potentiometerAngle >= MIN_DIAL_ANGLE && potentiometerAngle <= MAX_DIAL_ANGLE) {
+    potentiometerAngle = (analogRead(POTENTIOMETER) / 1023) * 999;
+    if (valueWithinTargetError(potentiometerAngle, DIAL_SOLUTION_ANGLE, DIAL_SOLUTION_ERROR)) {
         setLEDColor(0, 255, 0);
         potentiometerIsSolved = true;
     }
     else {
-        int redVal = deltaTimeMs % (MAX_DIAL_ANGLE - potentiometerAngle) >= 60 ? 255 : 0;
-        setLEDColor(redVal, 0, 0);
+        setLEDColor(0, 0, 0);
         potentiometerIsSolved = false;
     }
 
@@ -258,6 +259,11 @@ bool arraysAreEquivalent(int array1[], int array2[], int arrayLength) {
         if (array1[i] != array2[i]) { return false; }
     }
     return true;
+}
+
+// Return true if integer value within specified margin of error of target, false otherwise
+bool valueWithinTargetError(int value, int target, int error) {
+    return (value <= target + error) || (value >= target - error);
 }
 
 // Print numbers to an LCD screen as a formatted string with leading zeros 
