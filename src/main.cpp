@@ -2,7 +2,6 @@
 
 #include <Arduino.h>
 #include <LiquidCrystal.h>
-#include <Servo.h>
 
 /* <----------------------------| DEFINES  |----------------------------> */
 
@@ -36,7 +35,6 @@ int countDigits(int num);
 bool arraysAreEquivalent(int array1[], int array2[], int arrayLength);
 void printNumberWithLeadingZeros(int num, int width);
 void setLEDColor(int redValue, int greenValue, int blueValue);
-void setServo(Servo s, int angle, int speed);
 void resetUserSequence();
 
 /* <----------------------------| CONSTANTS |----------------------------> */
@@ -65,10 +63,6 @@ const int CUT_COUNT_THRESHOLD = 20;
 // LCD variables
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 
-// Servo variables
-Servo servo;
-int servoPosition;
-
 // Countdown variables
 int countdownElapsedSeconds;
 unsigned long startTimeMs, endTimeMs, deltaTimeMs;
@@ -96,6 +90,7 @@ void setup() {
     // Initialize UX pins
     pinMode(SPEAKER, OUTPUT);
     pinMode(LCD_CONTRAST, OUTPUT);
+    pinMode(SERVO, OUTPUT);
 
     // Initialize LED pins
     pinMode(STATIC_LED_GREEN, OUTPUT);
@@ -116,8 +111,7 @@ void setup() {
     analogWrite(LCD_CONTRAST, 100);
     
     // Initialize Servo
-    servo.attach(SERVO);
-    servoPosition = servo.read();
+    analogWrite(SERVO, 0);
 
     // Initialize LEDs
     digitalWrite(STATIC_LED_GREEN, LOW);
@@ -153,7 +147,9 @@ void loop() {
         analogWrite(SPEAKER, 0);
 
         // Move pin out of way to let chemicals mix
-        setServo(servo, 180, 15);
+        analogWrite(SERVO, 50);
+        delay(1000);
+        analogWrite(SERVO, 0);
 
         // Terminate program
         exit(0);
@@ -274,14 +270,6 @@ void setLEDColor(int redValue, int greenValue, int blueValue) {
     analogWrite(DYNAMIC_LED_RED, redValue);
     analogWrite(DYNAMIC_LED_GREEN, greenValue);
     analogWrite(DYNAMIC_LED_BLUE, blueValue);
-}
-
-// Turn servo to specified angle, with a delay of speed between each degree turn
-void setServo(Servo s, int angle, int speed) {
-    while (s.read() < angle) {
-        s.write(s.read() + 1);
-        delay(speed);
-    }
 }
 
 // Clears the user sequence array with null pin
