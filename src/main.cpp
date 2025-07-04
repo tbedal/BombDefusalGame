@@ -5,18 +5,38 @@
 
 /* <----------------------------| DEFINES  |----------------------------> */
 
-// Initalize UX pins
-#define LCD_CONTRAST 13
-#define SPEAKER 12
+// LCD pins
+#define LCD_CA 13
+#define LCD_RS 27
+#define LCD_EN 26
+#define LCD_D4 25
+#define LCD_D5 24
+#define LCD_D6 23
+#define LCD_D7 22
+
+// Countdown buzzer pin
+#define BUZZER 12
+
+// Servo pin
 #define SERVO 6
 
 // LED pins
+/* WIRING GUIDE:
+ * DYNAMIC LED: RGB data and GND match wire color
+ * STATIC LEDS:
+ * * * 
+ */
 #define STATIC_LED_GREEN 2
 #define DYNAMIC_LED_RED 8
 #define DYNAMIC_LED_GREEN 9
 #define DYNAMIC_LED_BLUE 10
 
 // Potentiometer pin
+/*
+ * ORANGE = data
+ * RED = ground
+ * BROWN = power
+ */
 #define POTENTIOMETER 54
 
 // Button pins
@@ -35,21 +55,21 @@ int countDigits(int num);
 bool arraysAreEquivalent(int array1[], int array2[], int arrayLength);
 bool valueWithinTargetError(int value, int target, int error);
 void printNumberWithLeadingZeros(int num, int width);
-void setLEDColor(int redValue, int greenValue, int blueValue);
+void setDynamicLED(int redValue, int greenValue, int blueValue);
 void resetUserSequence();
 
 /* <----------------------------| CONSTANTS |----------------------------> */
 
 // LCD constants
-const int rs = 27, en = 26, d4 = 25, d5 = 24, d6 = 23, d7 = 22;
+const int LCD_CONTRAST = 100;
 const int LCD_COLUMNS = 16, LCD_ROWS = 2;
 
 // Countdown constants
-const int COUNTDOWN_DURATION = 500;
+const int COUNTDOWN_DURATION_SECONDS = 500;
 
 // Potentiometer constants
 const int DIAL_SOLUTION_ANGLE = 433;
-const int DIAL_SOLUTION_ERROR = 2;
+const int DIAL_SOLUTION_ERROR = 1;
 
 // Button constants
 const int NUM_BUTTONS = 4;
@@ -63,7 +83,7 @@ const int CUT_COUNT_THRESHOLD = 20;
 /* <----------------------------| VARIABLES |----------------------------> */
 
 // LCD variables
-LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+LiquidCrystal lcd(LCD_RS, LCD_EN, LCD_D4, LCD_D5, LCD_D6, LCD_D7);
 
 // Countdown variables
 int countdownElapsedSeconds;
@@ -90,8 +110,8 @@ void setup() {
     Serial.begin(9600);
     
     // Initialize UX pins
-    pinMode(SPEAKER, OUTPUT);
-    pinMode(LCD_CONTRAST, OUTPUT);
+    pinMode(BUZZER, OUTPUT);
+    pinMode(LCD_CA, OUTPUT);
     pinMode(SERVO, OUTPUT);
 
     // Initialize LED pins
@@ -110,7 +130,7 @@ void setup() {
     // Initialize LCD screen
     lcd.begin(LCD_COLUMNS, LCD_ROWS);
     lcd.setCursor(0, 0);
-    analogWrite(LCD_CONTRAST, 100);
+    analogWrite(LCD_CA, LCD_CONTRAST);
     
     // Initialize Servo
     analogWrite(SERVO, 0);
@@ -135,7 +155,7 @@ void loop() {
 
     // Check if all puzzles have been solved
     bombIsDefused = potentiometerIsSolved && buttonIsSolved && wireIsSolved;
-    countdownIsComplete = countdownElapsedSeconds >= COUNTDOWN_DURATION;
+    countdownIsComplete = countdownElapsedSeconds >= COUNTDOWN_DURATION_SECONDS;
 
     // Terminate countdown via defusal or detonation
     if (countdownIsComplete) {
@@ -143,10 +163,10 @@ void loop() {
         lcd.setCursor(0, 1);
         lcd.print("DETONATING...");
 
-        // Long speaker firing to indicate bomb detonation
-        analogWrite(SPEAKER, 1);
+        // Long buzzer firing to indicate bomb detonation
+        analogWrite(BUZZER, 1);
         delay(3000);
-        analogWrite(SPEAKER, 0);
+        analogWrite(BUZZER, 0);
 
         // Move pin out of way to let chemicals mix
         analogWrite(SERVO, 50);
@@ -173,12 +193,12 @@ void loop() {
         // Update LCD Screen
         countdownElapsedSeconds++;
         lcd.home();
-        printNumberWithLeadingZeros((countdownElapsedSeconds - COUNTDOWN_DURATION) * -1, 2);
+        printNumberWithLeadingZeros((countdownElapsedSeconds - COUNTDOWN_DURATION_SECONDS) * -1, 2);
 
-        // Buzz speaker
-        analogWrite(SPEAKER, 1);
+        // Buzz buzzer
+        analogWrite(BUZZER, 1);
         delay(100);
-        analogWrite(SPEAKER, 0);
+        analogWrite(BUZZER, 0);
 
         // Restart seconds counter
         startTimeMs = millis();
@@ -187,13 +207,13 @@ void loop() {
     /* ---------- POTENTIOMETER PUZZLE ---------- */
 
     // Turn LED to green if potentiometer within defusal range, otherwise keep red
-    potentiometerAngle = (analogRead(POTENTIOMETER) / 1023) * 999;
+    potentiometerAngle = (analogRead(POTENTIOMETER) / 1023.0) * 999.0;
     if (valueWithinTargetError(potentiometerAngle, DIAL_SOLUTION_ANGLE, DIAL_SOLUTION_ERROR)) {
-        setLEDColor(0, 255, 0);
+        setDynamicLED(0, 255, 0);
         potentiometerIsSolved = true;
     }
     else {
-        setLEDColor(0, 0, 0);
+        setDynamicLED(0, 0, 0);
         potentiometerIsSolved = false;
     }
 
@@ -228,7 +248,7 @@ void loop() {
         wireIsSolved = true;
     }
     else if (redWireCutCount >= 20) {
-        countdownElapsedSeconds = COUNTDOWN_DURATION;
+        countdownElapsedSeconds = COUNTDOWN_DURATION_SECONDS;
     }
 
     /* ---------- CLOCK ---------- */
@@ -259,7 +279,7 @@ bool arraysAreEquivalent(int array1[], int array2[], int arrayLength) {
 
 // Return true if integer value within specified margin of error of target, false otherwise
 bool valueWithinTargetError(int value, int target, int error) {
-    return (value <= target + error) || (value >= target - error);
+    return (value <= target + error) && (value >= target - error);
 }
 
 // Print numbers to an LCD screen as a formatted string with leading zeros 
@@ -272,7 +292,7 @@ void printNumberWithLeadingZeros(int num, int width) {
 }
 
 // Set color of common cathode RGB LED on breadboard
-void setLEDColor(int redValue, int greenValue, int blueValue) {
+void setDynamicLED(int redValue, int greenValue, int blueValue) {
     analogWrite(DYNAMIC_LED_RED, redValue);
     analogWrite(DYNAMIC_LED_GREEN, greenValue);
     analogWrite(DYNAMIC_LED_BLUE, blueValue);
