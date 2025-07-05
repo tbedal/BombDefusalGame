@@ -65,7 +65,8 @@ const int LCD_CONTRAST = 100;
 const int LCD_COLUMNS = 16, LCD_ROWS = 2;
 
 // Countdown constants
-const int COUNTDOWN_DURATION_SECONDS = 1.5 * 60 * 60;
+const int COUNTDOWN_DURATION_SECONDS = 60;
+const long STARTING_BUZZER_DELAY_MILLISECONDS = 5000;
 
 // Potentiometer constants
 const int DIAL_SOLUTION_ANGLE = 433;
@@ -86,10 +87,10 @@ const int CUT_COUNT_THRESHOLD = 20;
 LiquidCrystal lcd(LCD_RS, LCD_EN, LCD_D4, LCD_D5, LCD_D6, LCD_D7);
 
 // Countdown variables
-int countdownElapsedSeconds;
-unsigned long countdownMilliseconds; // TODO: this is temporary
+int countdownElapsedSeconds, countdownSecondsLeft;
+double percentTimeLeft;
 unsigned long startTimeMs, endTimeMs, deltaTimeMs;
-long buzzOnStart, buzzOnEnd, buzzOffStart, buzzOffEnd, timeSinceLastCheck, buzzDelay;
+long buzzOnStart, timeSinceLastBuzz, buzzDelay;
 bool potentiometerIsSolved, buttonIsSolved, wireIsSolved;
 bool countdownIsComplete, bombIsDefused;
 
@@ -150,8 +151,7 @@ void setup() {
     countdownElapsedSeconds = 0;
     greenWireCutCount = 0;
     startTimeMs = millis(), endTimeMs = millis();
-    buzzOnStart = millis(), buzzOnEnd = millis(), buzzOffStart = millis(), buzzOffEnd = millis();
-    timeSinceLastCheck = 5000;
+    timeSinceLastBuzz = 5000;
 }
 
 void loop() {
@@ -193,60 +193,42 @@ void loop() {
 
     // Countdown update
     deltaTimeMs = endTimeMs - startTimeMs;
+    countdownSecondsLeft = COUNTDOWN_DURATION_SECONDS - countdownElapsedSeconds;
+    percentTimeLeft = (double)(countdownSecondsLeft) / (double)(COUNTDOWN_DURATION_SECONDS);
+    buzzDelay = STARTING_BUZZER_DELAY_MILLISECONDS * percentTimeLeft;
+    
+    // Restart seconds counter
     if (deltaTimeMs >= 1000) {
         countdownElapsedSeconds++;
-
-        // Buzz buzzer
-        // analogWrite(BUZZER, 1);
-        // delay(100);
-        // analogWrite(BUZZER, 0);
-
-        // // Restart seconds counter
         startTimeMs = millis();
     }
 
-    timeSinceLastCheck = millis() - buzzOnStart;
-
-    Serial.print(timeSinceLastCheck);
-    Serial.print("   ,   ");
-    Serial.print(buzzOnStart);
-    Serial.print("   ,   ");
-    Serial.println(buzzOnEnd);
-
-    // if ((COUNTDOWN_DURATION_SECONDS / 2) > countdownElapsedSeconds) {
-    //     buzzerDelay = 5000;
-    // }
-
-    if (timeSinceLastCheck >= 5000) {
-        Serial.print("penis!!!");
-        analogWrite(BUZZER, 1);
+    // Determine if buzzer should be turned on or off
+    timeSinceLastBuzz = millis() - buzzOnStart;
+    if (timeSinceLastBuzz >= buzzDelay) {
+        Serial.print("penis!!");
         buzzOnStart = millis();
-        buzzOffEnd = millis();
+        analogWrite(BUZZER, 1);
     }
-    if (timeSinceLastCheck >= 100) {
-        Serial.print("cokc!!!");
+    else if (timeSinceLastBuzz >= 100) {
+        Serial.print("cokc!!");
         analogWrite(BUZZER, 0);
-        buzzOnEnd = millis();
-        buzzOffStart = millis();
     }
-    
 
-    // Serial.println(buzzerIsOn);
-
-    lcd.home();
-
+    // Calculate raw elapsed time in units
     int centiseconds = (999 - deltaTimeMs) / 10;
     int seconds = COUNTDOWN_DURATION_SECONDS - countdownElapsedSeconds;
     int minutes = seconds / 60;
     int hours = minutes / 60;
 
+    // Calculate units to display on LCD
     int displayCentiseconds = centiseconds < 0 ? 0 : centiseconds;
     int displaySeconds = seconds % 60;
     int displayMinutes = minutes % 60;
     int displayHours = hours;
 
-    
-
+    // Display time on LCD
+    lcd.home();
     printNumberWithLeadingZeros(displayHours, 2);
     lcd.print(":");
     printNumberWithLeadingZeros(displayMinutes, 2);
@@ -254,8 +236,6 @@ void loop() {
     printNumberWithLeadingZeros(displaySeconds, 2);
     lcd.print(":");
     printNumberWithLeadingZeros(displayCentiseconds, 2);
-
-    
 
     /* ---------- POTENTIOMETER PUZZLE ---------- */
 
@@ -291,7 +271,6 @@ void loop() {
         buttonIsSolved = true;
     }
 
-
     /* ---------- WIRE PUZZLE ---------- */
 
     // Wait for pinout on indicated wire to read 20 zeros in a row to wire is cut, then defuse or detonate accordingly
@@ -307,7 +286,6 @@ void loop() {
     /* ---------- CLOCK ---------- */
 
     // Keep track of how much time has passed since last second
-    countdownMilliseconds = millis();
     endTimeMs = millis();
 }
 
