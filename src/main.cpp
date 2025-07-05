@@ -65,7 +65,7 @@ const int LCD_CONTRAST = 100;
 const int LCD_COLUMNS = 16, LCD_ROWS = 2;
 
 // Countdown constants
-const int COUNTDOWN_DURATION_SECONDS = 500;
+const int COUNTDOWN_DURATION_SECONDS = 1.5 * 60 * 60;
 
 // Potentiometer constants
 const int DIAL_SOLUTION_ANGLE = 433;
@@ -87,7 +87,9 @@ LiquidCrystal lcd(LCD_RS, LCD_EN, LCD_D4, LCD_D5, LCD_D6, LCD_D7);
 
 // Countdown variables
 int countdownElapsedSeconds;
+unsigned long countdownMilliseconds; // TODO: this is temporary
 unsigned long startTimeMs, endTimeMs, deltaTimeMs;
+long buzzOnStart, buzzOnEnd, buzzOffStart, buzzOffEnd, timeSinceLastCheck, buzzDelay;
 bool potentiometerIsSolved, buttonIsSolved, wireIsSolved;
 bool countdownIsComplete, bombIsDefused;
 
@@ -148,6 +150,8 @@ void setup() {
     countdownElapsedSeconds = 0;
     greenWireCutCount = 0;
     startTimeMs = millis(), endTimeMs = millis();
+    buzzOnStart = millis(), buzzOnEnd = millis(), buzzOffStart = millis(), buzzOffEnd = millis();
+    timeSinceLastCheck = 5000;
 }
 
 void loop() {
@@ -190,19 +194,68 @@ void loop() {
     // Countdown update
     deltaTimeMs = endTimeMs - startTimeMs;
     if (deltaTimeMs >= 1000) {
-        // Update LCD Screen
         countdownElapsedSeconds++;
-        lcd.home();
-        printNumberWithLeadingZeros((countdownElapsedSeconds - COUNTDOWN_DURATION_SECONDS) * -1, 2);
 
         // Buzz buzzer
-        analogWrite(BUZZER, 1);
-        delay(100);
-        analogWrite(BUZZER, 0);
+        // analogWrite(BUZZER, 1);
+        // delay(100);
+        // analogWrite(BUZZER, 0);
 
-        // Restart seconds counter
+        // // Restart seconds counter
         startTimeMs = millis();
     }
+
+    timeSinceLastCheck = millis() - buzzOnStart;
+
+    Serial.print(timeSinceLastCheck);
+    Serial.print("   ,   ");
+    Serial.print(buzzOnStart);
+    Serial.print("   ,   ");
+    Serial.println(buzzOnEnd);
+
+    // if ((COUNTDOWN_DURATION_SECONDS / 2) > countdownElapsedSeconds) {
+    //     buzzerDelay = 5000;
+    // }
+
+    if (timeSinceLastCheck >= 5000) {
+        Serial.print("penis!!!");
+        analogWrite(BUZZER, 1);
+        buzzOnStart = millis();
+        buzzOffEnd = millis();
+    }
+    if (timeSinceLastCheck >= 100) {
+        Serial.print("cokc!!!");
+        analogWrite(BUZZER, 0);
+        buzzOnEnd = millis();
+        buzzOffStart = millis();
+    }
+    
+
+    // Serial.println(buzzerIsOn);
+
+    lcd.home();
+
+    int centiseconds = (999 - deltaTimeMs) / 10;
+    int seconds = COUNTDOWN_DURATION_SECONDS - countdownElapsedSeconds;
+    int minutes = seconds / 60;
+    int hours = minutes / 60;
+
+    int displayCentiseconds = centiseconds < 0 ? 0 : centiseconds;
+    int displaySeconds = seconds % 60;
+    int displayMinutes = minutes % 60;
+    int displayHours = hours;
+
+    
+
+    printNumberWithLeadingZeros(displayHours, 2);
+    lcd.print(":");
+    printNumberWithLeadingZeros(displayMinutes, 2);
+    lcd.print(":");
+    printNumberWithLeadingZeros(displaySeconds, 2);
+    lcd.print(":");
+    printNumberWithLeadingZeros(displayCentiseconds, 2);
+
+    
 
     /* ---------- POTENTIOMETER PUZZLE ---------- */
 
@@ -254,6 +307,7 @@ void loop() {
     /* ---------- CLOCK ---------- */
 
     // Keep track of how much time has passed since last second
+    countdownMilliseconds = millis();
     endTimeMs = millis();
 }
 
@@ -284,8 +338,7 @@ bool valueWithinTargetError(int value, int target, int error) {
 
 // Print numbers to an LCD screen as a formatted string with leading zeros 
 void printNumberWithLeadingZeros(int num, int width) {
-    int currentDigits = countDigits(num);
-    for (int i = 0; i < width - currentDigits; i++) {
+    for (int i = 0; i < width - countDigits(num); i++) {
         lcd.print("0");
     }
     lcd.print(num);
