@@ -26,10 +26,13 @@
  * STATIC LEDS:
  * * * 
  */
-#define STATIC_LED_GREEN 2
-#define DYNAMIC_LED_RED 8
-#define DYNAMIC_LED_GREEN 9
-#define DYNAMIC_LED_BLUE 10
+#define LED_STATIC_RED 5
+#define LED_STATIC_YELLOW 4
+#define LED_STATIC_GREEN 3
+#define LED_STATIC_BLUE 2
+#define LED_DYNAMIC_RED 8
+#define LED_DYNAMIC_GREEN 9
+#define LED_DYNAMIC_BLUE 10
 
 // Potentiometer pin
 /*
@@ -57,6 +60,7 @@ bool valueWithinTargetError(int value, int target, int error);
 void printNumberWithLeadingZeros(int num, int width);
 void setDynamicLED(int redValue, int greenValue, int blueValue);
 void resetUserSequence();
+void(* resetFunc) (void) = 0; //declare reset function at address 0
 
 /* <----------------------------| CONSTANTS |----------------------------> */
 
@@ -65,8 +69,8 @@ const int LCD_CONTRAST = 100;
 const int LCD_COLUMNS = 16, LCD_ROWS = 2;
 
 // Countdown constants
-const int COUNTDOWN_DURATION_SECONDS = 60;
-const long STARTING_BUZZER_DELAY_MILLISECONDS = 5000;
+const int COUNTDOWN_DURATION_SECONDS = 500;
+const long STARTING_BUZZER_DELAY_MILLISECONDS = 10000;
 
 // Potentiometer constants
 const int DIAL_SOLUTION_ANGLE = 433;
@@ -111,6 +115,7 @@ int greenWireCutCount, redWireCutCount;
 
 void setup() {
     Serial.begin(9600);
+    pinMode(47, OUTPUT);
     
     // Initialize UX pins
     pinMode(BUZZER, OUTPUT);
@@ -118,10 +123,13 @@ void setup() {
     pinMode(SERVO, OUTPUT);
 
     // Initialize LED pins
-    pinMode(STATIC_LED_GREEN, OUTPUT);
-    pinMode(DYNAMIC_LED_RED, OUTPUT);
-    pinMode(DYNAMIC_LED_GREEN, OUTPUT);
-    pinMode(DYNAMIC_LED_BLUE, OUTPUT);
+    pinMode(LED_STATIC_RED, OUTPUT);
+    pinMode(LED_STATIC_YELLOW, OUTPUT);
+    pinMode(LED_STATIC_GREEN, OUTPUT);
+    pinMode(LED_STATIC_BLUE, OUTPUT);
+    pinMode(LED_DYNAMIC_RED, OUTPUT);
+    pinMode(LED_DYNAMIC_GREEN, OUTPUT);
+    pinMode(LED_DYNAMIC_BLUE, OUTPUT);
 
     // Initialize puzzle pins
     pinMode(POTENTIOMETER, INPUT);
@@ -139,10 +147,13 @@ void setup() {
     analogWrite(SERVO, 0);
 
     // Initialize LEDs
-    digitalWrite(STATIC_LED_GREEN, LOW);
-    analogWrite(DYNAMIC_LED_RED, 255);
-    analogWrite(DYNAMIC_LED_GREEN, 0);
-    analogWrite(DYNAMIC_LED_BLUE, 0);
+    digitalWrite(LED_STATIC_RED, HIGH);
+    digitalWrite(LED_STATIC_YELLOW, LOW);
+    digitalWrite(LED_STATIC_GREEN, LOW);
+    digitalWrite(LED_STATIC_BLUE, LOW);
+    analogWrite(LED_DYNAMIC_RED, 255);
+    analogWrite(LED_DYNAMIC_GREEN, 0);
+    analogWrite(LED_DYNAMIC_BLUE, 0);
 
     // Initialize variables
     for (int i = 0; i < SEQUENCE_LENGTH; i++) { userSequence[i] = -1; }
@@ -151,7 +162,6 @@ void setup() {
     countdownElapsedSeconds = 0;
     greenWireCutCount = 0;
     startTimeMs = millis(), endTimeMs = millis();
-    timeSinceLastBuzz = 5000;
 }
 
 void loop() {
@@ -203,15 +213,26 @@ void loop() {
         startTimeMs = millis();
     }
 
+    if (countdownElapsedSeconds % 2 == 0) {
+        digitalWrite(LED_STATIC_RED, HIGH);
+        digitalWrite(LED_STATIC_YELLOW, HIGH);
+        digitalWrite(LED_STATIC_GREEN, HIGH);
+        digitalWrite(LED_STATIC_BLUE, HIGH);
+    }
+    else {
+        digitalWrite(LED_STATIC_RED, LOW);
+        digitalWrite(LED_STATIC_YELLOW, LOW);
+        digitalWrite(LED_STATIC_GREEN, LOW);
+        digitalWrite(LED_STATIC_BLUE, LOW);
+    }
+
     // Determine if buzzer should be turned on or off
     timeSinceLastBuzz = millis() - buzzOnStart;
     if (timeSinceLastBuzz >= buzzDelay) {
-        Serial.print("penis!!");
         buzzOnStart = millis();
         analogWrite(BUZZER, 1);
     }
     else if (timeSinceLastBuzz >= 100) {
-        Serial.print("cokc!!");
         analogWrite(BUZZER, 0);
     }
 
@@ -267,7 +288,7 @@ void loop() {
         resetUserSequence();
     }
     else if (userSequenceIndex == SEQUENCE_LENGTH) {
-        digitalWrite(STATIC_LED_GREEN, HIGH);
+        digitalWrite(LED_STATIC_GREEN, HIGH);
         buttonIsSolved = true;
     }
 
@@ -279,9 +300,9 @@ void loop() {
     if (greenWireCutCount >= 20) {
         wireIsSolved = true;
     }
-    else if (redWireCutCount >= 20) {
-        countdownElapsedSeconds = COUNTDOWN_DURATION_SECONDS;
-    }
+    // else if (redWireCutCount >= 20) {
+    //     countdownElapsedSeconds = COUNTDOWN_DURATION_SECONDS;
+    // }
 
     /* ---------- CLOCK ---------- */
 
@@ -324,9 +345,9 @@ void printNumberWithLeadingZeros(int num, int width) {
 
 // Set color of common cathode RGB LED on breadboard
 void setDynamicLED(int redValue, int greenValue, int blueValue) {
-    analogWrite(DYNAMIC_LED_RED, redValue);
-    analogWrite(DYNAMIC_LED_GREEN, greenValue);
-    analogWrite(DYNAMIC_LED_BLUE, blueValue);
+    analogWrite(LED_DYNAMIC_RED, redValue);
+    analogWrite(LED_DYNAMIC_GREEN, greenValue);
+    analogWrite(LED_DYNAMIC_BLUE, blueValue);
 }
 
 // Clears the user sequence array with null pin
