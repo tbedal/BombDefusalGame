@@ -20,12 +20,10 @@
 // Servo pin
 #define SERVO 6
 
+#define RESET_PIN 49
+#define RESET_SWITCH 48
+
 // LED pins
-/* WIRING GUIDE:
- * DYNAMIC LED: RGB data and GND match wire color
- * STATIC LEDS:
- * * * 
- */
 #define LED_STATIC_RED 5
 #define LED_STATIC_YELLOW 4
 #define LED_STATIC_GREEN 3
@@ -115,12 +113,13 @@ int greenWireCutCount, redWireCutCount;
 
 void setup() {
     Serial.begin(9600);
-    pinMode(47, OUTPUT);
     
     // Initialize UX pins
     pinMode(BUZZER, OUTPUT);
     pinMode(LCD_CA, OUTPUT);
     pinMode(SERVO, OUTPUT);
+    pinMode(RESET_PIN, INPUT);
+    pinMode(RESET_SWITCH, INPUT);
 
     // Initialize LED pins
     pinMode(LED_STATIC_RED, OUTPUT);
@@ -162,9 +161,23 @@ void setup() {
     countdownElapsedSeconds = 0;
     greenWireCutCount = 0;
     startTimeMs = millis(), endTimeMs = millis();
+
+    /* TODO:
+     * So basically my idea is, at startup, check if the reset switch is at 1. If it is enter the secret menu and
+     * let the user be able to change what the button sequence, timer, and wire for the puzzle should be. This is OPTIONAL!!!!!!
+     * So get the thing working AND A MANUAL FIRST, AND THEN try this little doohicky out.
+     */
 }
 
 void loop() {
+    /* ---------- SUPER SECRET MENU ---------- */
+    Serial.println(digitalRead(48));
+    if (potentiometerAngle == 777 && digitalRead(BUTTON_RED) == 1 && digitalRead(BUTTON_BLUE) == 1 && digitalRead(PUZZLE_WIRE_GREEN) == 0) {
+        if (digitalRead(RESET_PIN) == 1) {
+            resetFunc();
+        }
+    } 
+    
     /* ---------- BOMB DEFUSED/DETONATED ---------- */
 
     // Check if all puzzles have been solved
