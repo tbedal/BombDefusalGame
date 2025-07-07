@@ -20,8 +20,8 @@
 // Servo pin
 #define SERVO 6
 
-#define RESET_PIN 49
-#define RESET_SWITCH 48
+// Power switch pin
+#define POWER_SWITCH 48
 
 // LED pins
 #define LED_STATIC_RED 5
@@ -33,11 +33,6 @@
 #define LED_DYNAMIC_BLUE 10
 
 // Potentiometer pin
-/*
- * ORANGE = data
- * RED = ground
- * BROWN = power
- */
 #define POTENTIOMETER 54
 
 // Button pins
@@ -45,6 +40,7 @@
 #define BUTTON_YELLOW 52
 #define BUTTON_GREEN 51
 #define BUTTON_BLUE 50
+#define BUTTON_RESET 49
 
 // Wire pins
 #define PUZZLE_WIRE_BROWN 45
@@ -60,6 +56,7 @@ bool valueWithinTargetError(int value, int target, int error);
 void printNumberWithLeadingZeros(int num, int width);
 void setDynamicLED(int redValue, int greenValue, int blueValue);
 void resetUserSequence();
+void waitForReset();
 void(* resetFunc) (void) = 0; //declare reset function at address 0
 
 /* <----------------------------| CONSTANTS |----------------------------> */
@@ -69,21 +66,24 @@ const int LCD_CONTRAST = 100;
 const int LCD_COLUMNS = 16, LCD_ROWS = 2;
 
 // Countdown constants
-const int COUNTDOWN_DURATION_SECONDS = 1;
+const int COUNTDOWN_DURATION_SECONDS = 60;
 const long STARTING_BUZZER_DELAY_MILLISECONDS = 10000;
 
 // Potentiometer constants
-const int DIAL_SOLUTION_ANGLE = 433;
+const int DIAL_SOLUTION_ANGLE = 433; // TODO: randomize value at start?
 const int DIAL_SOLUTION_ERROR = 1;
 
 // Button constants
 const int NUM_BUTTONS = 4;
 const int BUTTON_PINS[NUM_BUTTONS] = {BUTTON_RED, BUTTON_YELLOW, BUTTON_GREEN, BUTTON_BLUE};
-const int MASTER_SEQUENCE[] = {BUTTON_RED, BUTTON_YELLOW, BUTTON_RED};
+const int MASTER_SEQUENCE[] = {BUTTON_RED, BUTTON_YELLOW, BUTTON_RED}; // TODO: randomize sequence at start of program or make manually-selected
 const int SEQUENCE_LENGTH = (int) (sizeof(MASTER_SEQUENCE) / sizeof(*MASTER_SEQUENCE));
 
 // Wire constants
 const int CUT_COUNT_THRESHOLD = 20;
+const int NUM_WIRES = 4;
+const int WIRE_PINS[NUM_WIRES] = {PUZZLE_WIRE_BROWN, PUZZLE_WIRE_ORANGE, PUZZLE_WIRE_BLUE, PUZZLE_WIRE_GREEN};
+
 
 /* <----------------------------| VARIABLES |----------------------------> */
 
@@ -108,27 +108,21 @@ int buttonState[NUM_BUTTONS];
 int lastButtonState[NUM_BUTTONS];
 
 // Wire variables
-int greenWireCutCount, redWireCutCount;
+int wireCutCount[NUM_WIRES];
+int solutionWire;
 
 
 /* <----------------------------| MAIN FUNCTIONS |----------------------------> */
 
 void setup() {
     Serial.begin(9600);
-
-    pinMode(PUZZLE_WIRE_BROWN, INPUT);
-    pinMode(PUZZLE_WIRE_ORANGE, INPUT);
-    pinMode(PUZZLE_WIRE_BLUE, INPUT);
-    pinMode(PUZZLE_WIRE_GREEN, INPUT);
     
-    // Initialize UX pins
+    // Set UX pins
     pinMode(BUZZER, OUTPUT);
     pinMode(LCD_CA, OUTPUT);
     pinMode(SERVO, OUTPUT);
-    pinMode(RESET_PIN, INPUT);
-    pinMode(RESET_SWITCH, INPUT);
 
-    // Initialize LED pins
+    // Set LED pins
     pinMode(LED_STATIC_RED, OUTPUT);
     pinMode(LED_STATIC_YELLOW, OUTPUT);
     pinMode(LED_STATIC_GREEN, OUTPUT);
@@ -137,12 +131,20 @@ void setup() {
     pinMode(LED_DYNAMIC_GREEN, OUTPUT);
     pinMode(LED_DYNAMIC_BLUE, OUTPUT);
 
-    // Initialize puzzle pins
+    // Set puzzle pins
     pinMode(POTENTIOMETER, INPUT);
     pinMode(BUTTON_RED, INPUT);
     pinMode(BUTTON_YELLOW, INPUT);
     pinMode(BUTTON_GREEN, INPUT);
     pinMode(BUTTON_BLUE, INPUT);
+    pinMode(BUTTON_RESET, INPUT);
+    pinMode(POWER_SWITCH, INPUT);
+
+    // Set wire pins
+    pinMode(PUZZLE_WIRE_BROWN, INPUT);
+    pinMode(PUZZLE_WIRE_ORANGE, INPUT);
+    pinMode(PUZZLE_WIRE_BLUE, INPUT);
+    pinMode(PUZZLE_WIRE_GREEN, INPUT);
 
     // Initialize LCD screen
     lcd.begin(LCD_COLUMNS, LCD_ROWS);
@@ -162,11 +164,12 @@ void setup() {
     analogWrite(LED_DYNAMIC_BLUE, 0);
 
     // Initialize variables
+    srand(millis());
     for (int i = 0; i < SEQUENCE_LENGTH; i++) { userSequence[i] = -1; }
     potentiometerIsSolved = false, buttonIsSolved = false, wireIsSolved = false, bombIsDefused = false;
     userSequenceIndex = 0;
     countdownElapsedSeconds = 0;
-    greenWireCutCount = 0;
+    solutionWire = PUZZLE_WIRE_GREEN; // TODO: make solution wire randomly selected, with potentiometer light matching value
     startTimeMs = millis(), endTimeMs = millis();
 
     /* TODO:
@@ -177,34 +180,6 @@ void setup() {
 }
 
 void loop() {
-    /* ---------- SUPER SECRET MENU ---------- */
-    // Serial.println(digitalRead(48));
-    // if (potentiometerAngle == 777 && digitalRead(BUTTON_RED) == 1 && digitalRead(BUTTON_BLUE) == 1 && digitalRead(PUZZLE_WIRE_GREEN) == 0) {
-    //     if (digitalRead(RESET_PIN) == 1) {
-    //         resetFunc();
-    //     }
-    // } 
-    
-    Serial.print(potentiometerAngle);
-    Serial.print("  |  ");
-    Serial.print(buttonState[0]);
-    Serial.print(" ");
-    Serial.print(buttonState[1]);
-    Serial.print(" ");
-    Serial.print(buttonState[2]);
-    Serial.print(" ");
-    Serial.print(buttonState[3]);
-    Serial.print("  |  ");
-    Serial.print(digitalRead(PUZZLE_WIRE_BROWN));
-    Serial.print(" ");
-    Serial.print(digitalRead(PUZZLE_WIRE_ORANGE));
-    Serial.print(" ");
-    Serial.print(digitalRead(PUZZLE_WIRE_BLUE));
-    Serial.print(" ");
-
-    Serial.print(digitalRead(PUZZLE_WIRE_GREEN));
-    Serial.print("\n");
-    
     /* ---------- BOMB DEFUSED/DETONATED ---------- */
 
     // Check if all puzzles have been solved
@@ -223,27 +198,25 @@ void loop() {
         analogWrite(BUZZER, 0);
 
         // Move pin out of way to let chemicals mix
-
         /* For some godforsaken reason...
          * - 0, and 183 to 194 is STOPPED 
          * - 195 to 249 is MINIMUM to MAXIMUM CLOCKWISE
          * - 182 to 110 is MINIMUM to MAXIMUM COUNTER-CLOCKWISE
          */
-        analogWrite(SERVO, 220);
-        delay(600);
+        analogWrite(SERVO, 249);
+        delay(1000);
         analogWrite(SERVO, 0);
 
-
-        // Terminate program
-        exit(0);
+        // End program
+        waitForReset();
     }
     else if (bombIsDefused) {
         // Announce successful bomb defusal
         lcd.setCursor(0, 1);
         lcd.print("BOMB DEFUSED");
 
-        // Terminate program
-        exit(0);
+        // End program
+        waitForReset();
     }
 
     /* ---------- COUNTDOWN SEQUENCE ---------- */
@@ -260,17 +233,11 @@ void loop() {
         startTimeMs = millis();
     }
 
+    // Randomly flash static-color LEDs
     if (countdownElapsedSeconds % 2 == 0) {
-        digitalWrite(LED_STATIC_RED, HIGH);
-        digitalWrite(LED_STATIC_YELLOW, HIGH);
-        digitalWrite(LED_STATIC_GREEN, HIGH);
-        digitalWrite(LED_STATIC_BLUE, HIGH);
-    }
-    else {
-        digitalWrite(LED_STATIC_RED, LOW);
-        digitalWrite(LED_STATIC_YELLOW, LOW);
-        digitalWrite(LED_STATIC_GREEN, LOW);
-        digitalWrite(LED_STATIC_BLUE, LOW);
+        int ledValue = rand() % 10 == 1 ? HIGH : LOW;
+        int ledPin = (rand() % 4) + 2;
+        digitalWrite(ledPin, ledValue);
     }
 
     // Determine if buzzer should be turned on or off
@@ -342,14 +309,19 @@ void loop() {
     /* ---------- WIRE PUZZLE ---------- */
 
     // Wait for pinout on indicated wire to read 20 zeros in a row to wire is cut, then defuse or detonate accordingly
-    greenWireCutCount = digitalRead(PUZZLE_WIRE_GREEN) == 0 ? greenWireCutCount + 1 : 0;
-    // redWireCutCount = digitalRead(PUZZLE_WIRE_RED) == 0 ? redWireCutCount + 1 : 0;
-    if (greenWireCutCount >= 20) {
-        wireIsSolved = true;
+    for (int i = 0; i < NUM_WIRES; i++) {
+        int currentWire = WIRE_PINS[i];
+        wireCutCount[i] = digitalRead(PUZZLE_WIRE_GREEN) == 0 ? wireCutCount[i] + 1 : 0;
+        if (wireCutCount[i] < CUT_COUNT_THRESHOLD) { 
+            continue; 
+        }
+        else if (currentWire == solutionWire) {
+            wireIsSolved = true;
+        }
+        else {
+            // TODO: figure out way to cut timer only once per incorrect cut
+        }
     }
-    // else if (redWireCutCount >= 20) {
-    //     countdownElapsedSeconds = COUNTDOWN_DURATION_SECONDS;
-    // }
 
     /* ---------- CLOCK ---------- */
 
@@ -405,4 +377,12 @@ void resetUserSequence() {
     }
     userSequenceIndex = 0;
     userSequence[0] = lastButtonPressed;
+}
+
+// Wait for reset button to be pressed, then reset the program
+void waitForReset() {
+    while (digitalRead(BUTTON_RESET) == 0) {
+        continue;
+    }
+    resetFunc();
 }
