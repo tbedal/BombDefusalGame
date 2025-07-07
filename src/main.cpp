@@ -47,8 +47,10 @@
 #define BUTTON_BLUE 50
 
 // Wire pins
-#define PUZZLE_WIRE_GREEN 40
-#define PUZZLE_WIRE_RED 41
+#define PUZZLE_WIRE_BROWN 45
+#define PUZZLE_WIRE_ORANGE 43
+#define PUZZLE_WIRE_BLUE 41
+#define PUZZLE_WIRE_GREEN 39
 
 /* <----------------------------| FUNCTIONS  |----------------------------> */
 
@@ -67,7 +69,7 @@ const int LCD_CONTRAST = 100;
 const int LCD_COLUMNS = 16, LCD_ROWS = 2;
 
 // Countdown constants
-const int COUNTDOWN_DURATION_SECONDS = 500;
+const int COUNTDOWN_DURATION_SECONDS = 1;
 const long STARTING_BUZZER_DELAY_MILLISECONDS = 10000;
 
 // Potentiometer constants
@@ -113,6 +115,11 @@ int greenWireCutCount, redWireCutCount;
 
 void setup() {
     Serial.begin(9600);
+
+    pinMode(PUZZLE_WIRE_BROWN, INPUT);
+    pinMode(PUZZLE_WIRE_ORANGE, INPUT);
+    pinMode(PUZZLE_WIRE_BLUE, INPUT);
+    pinMode(PUZZLE_WIRE_GREEN, INPUT);
     
     // Initialize UX pins
     pinMode(BUZZER, OUTPUT);
@@ -171,12 +178,32 @@ void setup() {
 
 void loop() {
     /* ---------- SUPER SECRET MENU ---------- */
-    Serial.println(digitalRead(48));
-    if (potentiometerAngle == 777 && digitalRead(BUTTON_RED) == 1 && digitalRead(BUTTON_BLUE) == 1 && digitalRead(PUZZLE_WIRE_GREEN) == 0) {
-        if (digitalRead(RESET_PIN) == 1) {
-            resetFunc();
-        }
-    } 
+    // Serial.println(digitalRead(48));
+    // if (potentiometerAngle == 777 && digitalRead(BUTTON_RED) == 1 && digitalRead(BUTTON_BLUE) == 1 && digitalRead(PUZZLE_WIRE_GREEN) == 0) {
+    //     if (digitalRead(RESET_PIN) == 1) {
+    //         resetFunc();
+    //     }
+    // } 
+    
+    Serial.print(potentiometerAngle);
+    Serial.print("  |  ");
+    Serial.print(buttonState[0]);
+    Serial.print(" ");
+    Serial.print(buttonState[1]);
+    Serial.print(" ");
+    Serial.print(buttonState[2]);
+    Serial.print(" ");
+    Serial.print(buttonState[3]);
+    Serial.print("  |  ");
+    Serial.print(digitalRead(PUZZLE_WIRE_BROWN));
+    Serial.print(" ");
+    Serial.print(digitalRead(PUZZLE_WIRE_ORANGE));
+    Serial.print(" ");
+    Serial.print(digitalRead(PUZZLE_WIRE_BLUE));
+    Serial.print(" ");
+
+    Serial.print(digitalRead(PUZZLE_WIRE_GREEN));
+    Serial.print("\n");
     
     /* ---------- BOMB DEFUSED/DETONATED ---------- */
 
@@ -196,9 +223,16 @@ void loop() {
         analogWrite(BUZZER, 0);
 
         // Move pin out of way to let chemicals mix
-        analogWrite(SERVO, 50);
-        delay(1000);
+
+        /* For some godforsaken reason...
+         * - 0, and 183 to 194 is STOPPED 
+         * - 195 to 249 is MINIMUM to MAXIMUM CLOCKWISE
+         * - 182 to 110 is MINIMUM to MAXIMUM COUNTER-CLOCKWISE
+         */
+        analogWrite(SERVO, 220);
+        delay(600);
         analogWrite(SERVO, 0);
+
 
         // Terminate program
         exit(0);
@@ -309,7 +343,7 @@ void loop() {
 
     // Wait for pinout on indicated wire to read 20 zeros in a row to wire is cut, then defuse or detonate accordingly
     greenWireCutCount = digitalRead(PUZZLE_WIRE_GREEN) == 0 ? greenWireCutCount + 1 : 0;
-    redWireCutCount = digitalRead(PUZZLE_WIRE_RED) == 0 ? redWireCutCount + 1 : 0;
+    // redWireCutCount = digitalRead(PUZZLE_WIRE_RED) == 0 ? redWireCutCount + 1 : 0;
     if (greenWireCutCount >= 20) {
         wireIsSolved = true;
     }
